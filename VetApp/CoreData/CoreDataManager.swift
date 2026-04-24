@@ -4,7 +4,7 @@ import UIKit
 class CoreDataManager {
     static let shared = CoreDataManager()
     
-    // Contexto principal de Core Data (inyectado desde AppDelegate)
+    // El contexto se obtiene de forma segura desde el AppDelegate
     var context: NSManagedObjectContext {
         return (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     }
@@ -13,7 +13,7 @@ class CoreDataManager {
     
     func guardarMascota(nombre: String, especie: String, raza: String,
                         fechaNacimiento: Date, fotoData: Data?, usuarioUID: String) -> MascotaEntity {
-        let mascota = MascotaEntity(context: context)
+        let mascota = MascotaEntity(context: self.context)
         mascota.id = UUID()
         mascota.nombre = nombre
         mascota.especie = especie
@@ -25,20 +25,26 @@ class CoreDataManager {
         return mascota
     }
     
+    // Método unificado para obtener todas las mascotas
     func obtenerMascotas(usuarioUID: String) -> [MascotaEntity] {
         let request: NSFetchRequest<MascotaEntity> = MascotaEntity.fetchRequest()
         request.predicate = NSPredicate(format: "usuarioUID == %@", usuarioUID)
         request.sortDescriptors = [NSSortDescriptor(key: "nombre", ascending: true)]
         do {
-            return try context.fetch(request)
+            return try self.context.fetch(request)
         } catch {
             print("Error al obtener mascotas: \(error)")
             return []
         }
     }
     
+    // Alias para que AgendarCitaViewController no de error
+    func obtenerTodasLasMascotas(usuarioUID: String) -> [MascotaEntity] {
+        return obtenerMascotas(usuarioUID: usuarioUID)
+    }
+    
     func eliminarMascota(_ mascota: MascotaEntity) {
-        context.delete(mascota)
+        self.context.delete(mascota)
         saveContext()
     }
     
@@ -46,7 +52,7 @@ class CoreDataManager {
     
     func guardarCita(fecha: Date, hora: String, tipoServicio: String,
                      mascotaId: UUID, firestoreId: String) -> CitaEntity {
-        let cita = CitaEntity(context: context)
+        let cita = CitaEntity(context: self.context)
         cita.id = UUID()
         cita.fecha = fecha
         cita.hora = hora
@@ -63,7 +69,7 @@ class CoreDataManager {
         request.predicate = NSPredicate(format: "mascotaId == %@", mascotaId as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(key: "fecha", ascending: true)]
         do {
-            return try context.fetch(request)
+            return try self.context.fetch(request)
         } catch {
             print("Error al obtener citas: \(error)")
             return []
@@ -71,7 +77,6 @@ class CoreDataManager {
     }
     
     func obtenerTodasLasCitas(usuarioUID: String) -> [CitaEntity] {
-        // Primero obtenemos los IDs de las mascotas del usuario
         let mascotas = obtenerMascotas(usuarioUID: usuarioUID)
         let ids = mascotas.compactMap { $0.id }
         
@@ -79,7 +84,7 @@ class CoreDataManager {
         request.predicate = NSPredicate(format: "mascotaId IN %@", ids)
         request.sortDescriptors = [NSSortDescriptor(key: "fecha", ascending: true)]
         do {
-            return try context.fetch(request)
+            return try self.context.fetch(request)
         } catch {
             return []
         }
@@ -88,9 +93,9 @@ class CoreDataManager {
     // MARK: - Save
     
     func saveContext() {
-        if context.hasChanges {
+        if self.context.hasChanges {
             do {
-                try context.save()
+                try self.context.save()
             } catch {
                 print("Error al guardar Core Data: \(error)")
             }
