@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24512" systemVersion="24G517" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="CitaEntity" representedClassName="CitaEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="estado" optional="YES" attributeType="String"/>
+        <attribute name="fecha" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="firestoreId" optional="YES" attributeType="String"/>
+        <attribute name="hora" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="mascotaId" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="tipoServicio" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="MascotaEntity" representedClassName="MascotaEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="especie" optional="YES" attributeType="String"/>
+        <attribute name="fechaNacimiento" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="fotoData" optional="YES" attributeType="Binary"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="nombre" optional="YES" attributeType="String"/>
+        <attribute name="raza" optional="YES" attributeType="String"/>
+        <attribute name="usuarioUID" optional="YES" attributeType="String"/>
+    </entity>
+</model>
