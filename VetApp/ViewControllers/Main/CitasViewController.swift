@@ -82,115 +82,45 @@ extension CitasViewController: UITableViewDataSource, UITableViewDelegate {
 }
 
 class CitaCell: UITableViewCell {
+    private let servicioLabel = UILabel()
+    private let fechaLabel    = UILabel()
+    private let estadoBadge   = UILabel()
     
-    private let cardView: UIView = {
-        let v = UIView()
-        v.backgroundColor = .secondarySystemBackground
-        v.layer.cornerRadius = 16
-        v.layer.shadowColor = UIColor.black.cgColor
-        v.layer.shadowOpacity = 0.05
-        v.layer.shadowOffset = CGSize(width: 0, height: 2)
-        v.layer.shadowRadius = 4
-        v.translatesAutoresizingMaskIntoConstraints = false
-        return v
-    }()
-    
-    private let mascotaImageView: UIImageView = {
-        let iv = UIImageView()
-        iv.contentMode = .scaleAspectFill
-        iv.clipsToBounds = true
-        iv.layer.cornerRadius = 25
-        iv.backgroundColor = .systemGray5
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        return iv
-    }()
-    
-    private let nombreLabel: UILabel = {
-        let l = UILabel()
-        l.font = .systemFont(ofSize: 15, weight: .bold)
-        return l
-    }()
-    
-    private let servicioLabel: UILabel = {
-        let l = UILabel()
-        l.font = .systemFont(ofSize: 14, weight: .medium)
-        l.textColor = .systemBlue
-        return l
-    }()
-    
-    private let fechaLabel: UILabel = {
-        let l = UILabel()
-        l.font = .systemFont(ofSize: 12)
-        l.textColor = .secondaryLabel
-        return l
-    }()
-    
-    private let estadoBadge = UILabel()
-
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
-        backgroundColor = .clear
-        selectionStyle = .none
-        
-        contentView.addSubview(cardView)
-        [mascotaImageView, nombreLabel, servicioLabel, fechaLabel, estadoBadge].forEach {
-            $0.translatesAutoresizingMaskIntoConstraints = false
-            cardView.addSubview($0)
-        }
-        
-        // Estilo Badge
-        estadoBadge.font = .systemFont(ofSize: 11, weight: .bold)
+        servicioLabel.font = .systemFont(ofSize: 16, weight: .semibold)
+        fechaLabel.font    = .systemFont(ofSize: 14)
+        fechaLabel.textColor = .secondaryLabel
+        estadoBadge.font   = .systemFont(ofSize: 12, weight: .medium)
         estadoBadge.textColor = .white
-        estadoBadge.layer.cornerRadius = 10
+        estadoBadge.backgroundColor = .systemTeal
+        estadoBadge.layer.cornerRadius = 8
         estadoBadge.clipsToBounds = true
         estadoBadge.textAlignment = .center
-        
+        [servicioLabel, fechaLabel, estadoBadge].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            contentView.addSubview($0)
+        }
         NSLayoutConstraint.activate([
-            cardView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
-            cardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            cardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
-            
-            mascotaImageView.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 12),
-            mascotaImageView.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
-            mascotaImageView.widthAnchor.constraint(equalToConstant: 50),
-            mascotaImageView.heightAnchor.constraint(equalToConstant: 50),
-            
-            nombreLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 12),
-            nombreLabel.leadingAnchor.constraint(equalTo: mascotaImageView.trailingAnchor, constant: 12),
-            
-            servicioLabel.topAnchor.constraint(equalTo: nombreLabel.bottomAnchor, constant: 2),
-            servicioLabel.leadingAnchor.constraint(equalTo: nombreLabel.leadingAnchor),
-            
-            fechaLabel.topAnchor.constraint(equalTo: servicioLabel.bottomAnchor, constant: 2),
-            fechaLabel.leadingAnchor.constraint(equalTo: nombreLabel.leadingAnchor),
-            
-            estadoBadge.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -12),
-            estadoBadge.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 12),
-            estadoBadge.widthAnchor.constraint(equalToConstant: 75),
-            estadoBadge.heightAnchor.constraint(equalToConstant: 20)
+            servicioLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+            servicioLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            fechaLabel.topAnchor.constraint(equalTo: servicioLabel.bottomAnchor, constant: 4),
+            fechaLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            fechaLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+            estadoBadge.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            estadoBadge.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            estadoBadge.widthAnchor.constraint(equalToConstant: 80),
+            estadoBadge.heightAnchor.constraint(equalToConstant: 26)
         ])
     }
-    
     required init?(coder: NSCoder) { fatalError() }
     
     func configure(with cita: CitaEntity) {
-        // Nombre y Foto
-        nombreLabel.text = cita.mascota?.nombre ?? "Desconocido"
-        if let data = cita.mascota?.fotoData, let img = UIImage(data: data) {
-            mascotaImageView.image = img
-        } else {
-            mascotaImageView.image = UIImage(systemName: "pawprint.fill")
-            mascotaImageView.tintColor = .systemTeal
-        }
-        
         servicioLabel.text = cita.tipoServicio
-        
         let fmt = DateFormatter()
         fmt.dateStyle = .medium
         fechaLabel.text = "\(fmt.string(from: cita.fecha ?? Date())) · \(cita.hora ?? "")"
-        
-        estadoBadge.text = cita.estado?.uppercased()
+        estadoBadge.text = cita.estado
         estadoBadge.backgroundColor = cita.estado == "Pendiente" ? .systemOrange : .systemGreen
     }
 }

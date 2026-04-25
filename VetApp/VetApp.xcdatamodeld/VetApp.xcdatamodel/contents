@@ -18,6 +18,6 @@
         <attribute name="nombre" optional="YES" attributeType="String"/>
         <attribute name="raza" optional="YES" attributeType="String"/>
         <attribute name="usuarioUID" optional="YES" attributeType="String"/>
-        <relationship name="citas" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CitaEntity" inverseName="mascota" inverseEntity="CitaEntity"/>
+        <relationship name="citas" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CitaEntity" inverseName="mascota" inverseEntity="CitaEntity"/>
     </entity>
 </model>
