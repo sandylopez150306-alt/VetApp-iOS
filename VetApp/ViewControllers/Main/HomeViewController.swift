@@ -1,6 +1,7 @@
 import UIKit
 import CoreData
 import FirebaseAuth
+import FirebaseFirestore
 
 class HomeViewController: UIViewController {
     
@@ -11,8 +12,6 @@ class HomeViewController: UIViewController {
     private let contentView = UIView()
     
     // MARK: - UI Components
-    
-    // Header
     private let headerView: UIView = {
         let v = UIView()
         v.backgroundColor = UIColor(red: 0.06, green: 0.53, blue: 0.49, alpha: 1) // teal oscuro
@@ -60,8 +59,6 @@ class HomeViewController: UIViewController {
         ])
         return v
     }()
-    
-    // Stats cards
     private let mascotasCard   = StatCard(icon: "pawprint.fill",   color: UIColor(red: 0.06, green: 0.53, blue: 0.49, alpha: 1), title: "Mascotas")
     private let citasCard      = StatCard(icon: "calendar.badge.clock", color: UIColor(red: 0.96, green: 0.58, blue: 0.20, alpha: 1), title: "Citas")
     private let proximaCard    = StatCard(icon: "bell.badge.fill", color: UIColor(red: 0.91, green: 0.30, blue: 0.30, alpha: 1), title: "Próxima")
@@ -91,7 +88,7 @@ class HomeViewController: UIViewController {
     
     private let noCitasLabel: UILabel = {
         let l = UILabel()
-        l.text = "Sin citas próximas 🐾"
+        l.text = "Sin citas próximas "
         l.font = UIFont.systemFont(ofSize: 15)
         l.textColor = .secondaryLabel
         l.textAlignment = .center
@@ -100,7 +97,6 @@ class HomeViewController: UIViewController {
         return l
     }()
     
-    // Acciones rápidas
     private let accionesSectionLabel: UILabel = {
         let l = UILabel()
         l.text = "Acciones Rápidas"
@@ -118,7 +114,6 @@ class HomeViewController: UIViewController {
         return s
     }()
     
-    // Mis mascotas section
     private let mascotasSectionLabel: UILabel = {
         let l = UILabel()
         l.text = "Mis Mascotas"
@@ -229,12 +224,11 @@ class HomeViewController: UIViewController {
             waveMask.heightAnchor.constraint(equalToConstant: 40)
         ])
         
-        // Saludo dinámico por hora
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
-        case 0..<12: greetingLabel.text = "☀️ Buenos días"
-        case 12..<18: greetingLabel.text = "🌤 Buenas tardes"
-        default: greetingLabel.text = "🌙 Buenas noches"
+        case 0..<12: greetingLabel.text = "Buenos días"
+        case 12..<18: greetingLabel.text = "Buenas tardes"
+        default: greetingLabel.text = "Buenas noches"
         }
     }
     
@@ -328,43 +322,56 @@ class HomeViewController: UIViewController {
     }
     
     // MARK: - Data
-    private func cargarDatos() {
-        guard let uid = FirebaseAuthService.shared.uidActual else { return }
-        
-        // Nombre del usuario desde email
-        let email = Auth.auth().currentUser?.email ?? "Usuario"
-        let nombre = String(email.split(separator: "@").first ?? "Usuario")
-        nameLabel.text = nombre.capitalized
-        
-        // Cargar desde Core Data
-        mascotas = CoreDataManager.shared.obtenerMascotas(usuarioUID: uid)
-        citasProximas = CoreDataManager.shared.obtenerTodasLasCitas(usuarioUID: uid)
-            .filter { ($0.fecha ?? Date()) >= Date() }
-            .prefix(10)
-            .map { $0 }
-        
-        // Actualizar stats
-        mascotasCard.updateValue("\(mascotas.count)")
-        citasCard.updateValue("\(citasProximas.count)")
-        
-        if let proxima = citasProximas.first, let fecha = proxima.fecha {
-            let fmt = DateFormatter()
-            fmt.dateFormat = "d MMM"
-            fmt.locale = Locale(identifier: "es_PE")
-            proximaCard.updateValue(fmt.string(from: fecha))
-        } else {
-            proximaCard.updateValue("–")
+        private func cargarDatos() {
+            guard let uid = FirebaseAuthService.shared.uidActual else { return }
+            let email = Auth.auth().currentUser?.email ?? "Usuario"
+            let nombre = String(email.split(separator: "@").first ?? "Usuario")
+            nameLabel.text = nombre.capitalized
+            
+            let db = Firestore.firestore()
+
+            db.collection("mascotas").whereField("usuarioUID", isEqualTo: uid)
+                .addSnapshotListener { [weak self] snapshot, _ in
+                    guard let self = self, let documents = snapshot?.documents else { return }
+    
+                    self.mascotasCard.updateValue("\(documents.count)")
+                    
+                    // Control de visibilidad
+                    self.noMascotasLabel.isHidden = !documents.isEmpty
+                    self.mascotasCollectionView.isHidden = documents.isEmpty
+                    
+                    // Recarga la colección de miniaturas
+                    self.mascotasCollectionView.reloadData()
+                    print("DEBUG: \(documents.count) mascotas sincronizadas desde la nube.")
+                }
+
+            db.collection("citas").whereField("usuarioUID", isEqualTo: uid)
+                .addSnapshotListener { [weak self] snapshot, _ in
+                    guard let self = self, let documents = snapshot?.documents else { return }
+                    
+                    // Actualiza el contador visual de citas
+                    self.citasCard.updateValue("\(documents.count)")
+                    
+                    // Control de visibilidad de la sección
+                    self.noCitasLabel.isHidden = !documents.isEmpty
+                    self.citasCollectionView.isHidden = documents.isEmpty
+                    
+                    // Lógica para detectar la fecha de la cita más próxima
+                    if let primeraCita = documents.first?.data(),
+                       let timestamp = primeraCita["fecha"] as? Timestamp {
+                        let fecha = timestamp.dateValue()
+                        let fmt = DateFormatter()
+                        fmt.dateFormat = "d MMM"
+                        fmt.locale = Locale(identifier: "es_PE")
+                        self.proximaCard.updateValue(fmt.string(from: fecha))
+                    } else {
+                        self.proximaCard.updateValue("–")
+                    }
+
+                    self.citasCollectionView.reloadData()
+                    print("DEBUG: \(documents.count) citas sincronizadas desde la nube.")
+                }
         }
-        
-        // UI updates
-        noCitasLabel.isHidden = !citasProximas.isEmpty
-        noMascotasLabel.isHidden = !mascotas.isEmpty
-        citasCollectionView.isHidden = citasProximas.isEmpty
-        mascotasCollectionView.isHidden = mascotas.isEmpty
-        
-        citasCollectionView.reloadData()
-        mascotasCollectionView.reloadData()
-    }
     
     // MARK: - Animations
     private func animateCards() {

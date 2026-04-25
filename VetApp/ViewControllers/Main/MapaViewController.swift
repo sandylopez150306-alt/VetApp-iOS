@@ -27,7 +27,7 @@ class MapaViewController: UIViewController {
     
     private let comoLlegarButton: UIButton = {
         let b = UIButton(type: .system)
-        b.setTitle("🗺  Cómo llegar", for: .normal)
+        b.setTitle("Cómo llegar", for: .normal)
         b.backgroundColor = .systemTeal
         b.setTitleColor(.white, for: .normal)
         b.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
@@ -49,7 +49,7 @@ class MapaViewController: UIViewController {
         view.addSubview(infoCard)
         
         let nameLabel = UILabel()
-        nameLabel.text = "🏥 Animal Planet Vets"
+        nameLabel.text = "Animal Planet Vets"
         nameLabel.font = .systemFont(ofSize: 18, weight: .bold)
         
         let addressLabel = UILabel()
@@ -95,14 +95,11 @@ class MapaViewController: UIViewController {
     }
     
     private func configurarMapa() {
-        // Agregar pin de la clínica
         let anotacion = MKPointAnnotation()
         anotacion.coordinate = clinicaCoord
         anotacion.title = "Animal Planet Vets"
         anotacion.subtitle = "Alto Moche - Miramar"
         mapView.addAnnotation(anotacion)
-        
-        // Centrar mapa en la clínica
         let region = MKCoordinateRegion(center: clinicaCoord,
                                         latitudinalMeters: 800,
                                         longitudinalMeters: 800)

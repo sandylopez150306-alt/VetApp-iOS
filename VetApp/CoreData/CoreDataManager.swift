@@ -3,8 +3,6 @@ import UIKit
 
 class CoreDataManager {
     static let shared = CoreDataManager()
-    
-    // Contexto principal de Core Data (inyectado desde AppDelegate)
     var context: NSManagedObjectContext {
         return (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     }
@@ -71,7 +69,6 @@ class CoreDataManager {
     }
     
     func obtenerTodasLasCitas(usuarioUID: String) -> [CitaEntity] {
-        // Primero obtenemos los IDs de las mascotas del usuario
         let mascotas = obtenerMascotas(usuarioUID: usuarioUID)
         let ids = mascotas.compactMap { $0.id }
         

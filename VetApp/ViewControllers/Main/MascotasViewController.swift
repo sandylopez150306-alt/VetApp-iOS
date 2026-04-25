@@ -1,4 +1,6 @@
 import UIKit
+import FirebaseFirestore
+import CoreData
 
 class MascotasViewController: UIViewController {
     
@@ -62,9 +64,39 @@ class MascotasViewController: UIViewController {
     
     private func cargarMascotas() {
         guard let uid = FirebaseAuthService.shared.uidActual else { return }
-        mascotas = CoreDataManager.shared.obtenerMascotas(usuarioUID: uid)
-        tableView.reloadData()
-        emptyLabel.isHidden = !mascotas.isEmpty
+        let db = Firestore.firestore()
+        
+        db.collection("mascotas").whereField("usuarioUID", isEqualTo: uid)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
+                
+                if let error = error {
+                    print("Error al obtener mascotas: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else { return }
+       
+                self.mascotas.removeAll()
+                
+                for document in documents {
+                    let data = document.data()
+                    
+            
+                    let mascota = MascotaEntity(context: CoreDataManager.shared.context)
+                    mascota.nombre = data["nombre"] as? String
+                    mascota.especie = data["especie"] as? String
+                    mascota.raza = data["raza"] as? String
+                    mascota.id = UUID()
+                        
+                    self.mascotas.append(mascota)
+                }
+                
+                DispatchQueue.main.async {
+                    self.tableView.reloadData()
+                    self.emptyLabel.isHidden = !self.mascotas.isEmpty
+                }
+            }
     }
     
     @objc private func didTapAdd() {
@@ -75,12 +107,7 @@ class MascotasViewController: UIViewController {
     @objc private func didTapLogout() {
         let alert = UIAlertController(title: "¿Cerrar sesión?", message: nil, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Salir", style: .destructive) { _ in
-            FirebaseAuthService.shared.cerrarSesion()
-            let login = UINavigationController(rootViewController: LoginViewController())
-            login.modalPresentationStyle = .fullScreen
-            self.present(login, animated: true)
-        })
+       
         present(alert, animated: true)
     }
 }

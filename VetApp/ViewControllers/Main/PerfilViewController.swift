@@ -351,7 +351,7 @@ class PerfilViewController: UIViewController {
     
     @objc private func didTapDeleteAccount() {
         let alert = UIAlertController(
-            title: "⚠️ Eliminar cuenta",
+            title: "Eliminar cuenta",
             message: "Esta acción es irreversible. Se eliminarán todos tus datos y los de tus mascotas.",
             preferredStyle: .alert
         )

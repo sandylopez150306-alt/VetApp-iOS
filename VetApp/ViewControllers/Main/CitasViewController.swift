@@ -1,4 +1,7 @@
 import UIKit
+import CoreData
+import FirebaseAuth
+import FirebaseFirestore
 
 class CitasViewController: UIViewController {
     
@@ -30,8 +33,8 @@ class CitasViewController: UIViewController {
         title = mascota != nil ? "Citas de \(mascota!.nombre ?? "")" : "Mis Citas"
         view.backgroundColor = .systemBackground
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
-                                                             target: self,
-                                                             action: #selector(didTapAdd))
+                                                           target: self,
+                                                           action: #selector(didTapAdd))
         setupUI()
     }
     
@@ -56,15 +59,36 @@ class CitasViewController: UIViewController {
     }
     
     private func cargarCitas() {
-        if let mascota = mascota, let id = mascota.id {
-            citas = CoreDataManager.shared.obtenerCitas(mascotaId: id)
-        } else if let uid = FirebaseAuthService.shared.uidActual {
-            citas = CoreDataManager.shared.obtenerTodasLasCitas(usuarioUID: uid)
-        }
-        tableView.reloadData()
-        emptyLabel.isHidden = !citas.isEmpty
+        guard let uid = FirebaseAuthService.shared.uidActual else { return }
+        let db = Firestore.firestore()
+        db.collection("citas").whereField("usuarioUID", isEqualTo: uid)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self, let documents = snapshot?.documents else { return }
+                
+                self.citas.removeAll()
+                
+                for document in documents {
+                    let data = document.data()
+                    let cita = CitaEntity(context: CoreDataManager.shared.context)
+                    
+                    cita.tipoServicio = data["tipoServicio"] as? String
+                    cita.hora = data["hora"] as? String
+                    cita.estado = data["estado"] as? String ?? "Pendiente"
+                    
+                    if let timestamp = data["fecha"] as? Timestamp {
+                        cita.fecha = timestamp.dateValue()
+                    }
+                    
+                    self.citas.append(cita)
+                }
+                
+                DispatchQueue.main.async {
+                    self.tableView.reloadData()
+                    self.emptyLabel.isHidden = !self.citas.isEmpty
+                    print("DEBUG: ¡ÉXITO! Se cargaron \(self.citas.count) citas en total.")
+                }
+            }
     }
-    
     @objc private func didTapAdd() {
         let vc = AgendarCitaViewController()
         vc.mascota = mascota
@@ -72,8 +96,12 @@ class CitasViewController: UIViewController {
     }
 }
 
+// MARK: - Extensiones de Tabla (FUERA DE LA CLASE)
 extension CitasViewController: UITableViewDataSource, UITableViewDelegate {
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { citas.count }
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return citas.count
+    }
+    
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "CitaCell", for: indexPath) as! CitaCell
         cell.configure(with: citas[indexPath.row])
@@ -81,6 +109,7 @@ extension CitasViewController: UITableViewDataSource, UITableViewDelegate {
     }
 }
 
+// MARK: - Celda Personalizada
 class CitaCell: UITableViewCell {
     private let servicioLabel = UILabel()
     private let fechaLabel    = UILabel()
@@ -97,10 +126,12 @@ class CitaCell: UITableViewCell {
         estadoBadge.layer.cornerRadius = 8
         estadoBadge.clipsToBounds = true
         estadoBadge.textAlignment = .center
+        
         [servicioLabel, fechaLabel, estadoBadge].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             contentView.addSubview($0)
         }
+        
         NSLayoutConstraint.activate([
             servicioLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
             servicioLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
@@ -113,12 +144,14 @@ class CitaCell: UITableViewCell {
             estadoBadge.heightAnchor.constraint(equalToConstant: 26)
         ])
     }
+    
     required init?(coder: NSCoder) { fatalError() }
     
     func configure(with cita: CitaEntity) {
         servicioLabel.text = cita.tipoServicio
         let fmt = DateFormatter()
         fmt.dateStyle = .medium
+        fmt.locale = Locale(identifier: "es_PE")
         fechaLabel.text = "\(fmt.string(from: cita.fecha ?? Date())) · \(cita.hora ?? "")"
         estadoBadge.text = cita.estado
         estadoBadge.backgroundColor = cita.estado == "Pendiente" ? .systemOrange : .systemGreen

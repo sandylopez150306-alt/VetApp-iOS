@@ -3,14 +3,23 @@ import UIKit
 class LoginViewController: UIViewController {
     
     // MARK: - UI
-    private let logoLabel: UILabel = {
-        let l = UILabel()
-        l.text = "🐾 VetApp"
-        l.font = .systemFont(ofSize: 40, weight: .bold)
-        l.textAlignment = .center
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
-    }()
+        private let logoImageView: UIImageView = {
+            let iv = UIImageView()
+            iv.image = UIImage(systemName: "img")
+            iv.tintColor = .systemTeal
+            iv.contentMode = .scaleAspectFit
+            iv.translatesAutoresizingMaskIntoConstraints = false
+            return iv
+        }()
+
+        private let logoLabel: UILabel = {
+            let l = UILabel()
+            l.text = "VetApp"
+            l.font = .systemFont(ofSize: 40, weight: .bold)
+            l.textAlignment = .center
+            l.translatesAutoresizingMaskIntoConstraints = false
+            return l
+        }()
     
     private let subtitleLabel: UILabel = {
         let l = UILabel()
