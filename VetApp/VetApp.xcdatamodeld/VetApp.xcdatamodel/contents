@@ -8,6 +8,7 @@
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="mascotaId" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="tipoServicio" optional="YES" attributeType="String"/>
+        <relationship name="mascota" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="MascotaEntity" inverseName="citas" inverseEntity="MascotaEntity"/>
     </entity>
     <entity name="MascotaEntity" representedClassName="MascotaEntity" syncable="YES" codeGenerationType="class">
         <attribute name="especie" optional="YES" attributeType="String"/>
@@ -17,5 +18,6 @@
         <attribute name="nombre" optional="YES" attributeType="String"/>
         <attribute name="raza" optional="YES" attributeType="String"/>
         <attribute name="usuarioUID" optional="YES" attributeType="String"/>
+        <relationship name="citas" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CitaEntity" inverseName="mascota" inverseEntity="CitaEntity"/>
     </entity>
 </model>
