@@ -35,6 +35,19 @@ class CoreDataManager {
         }
     }
     
+    // Función corregida: fuera de cualquier otra función
+    func obtenerTodasLasMascotas(usuarioUID: String) -> [MascotaEntity] {
+        let request: NSFetchRequest<MascotaEntity> = MascotaEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "usuarioUID == %@", usuarioUID)
+        request.sortDescriptors = [NSSortDescriptor(key: "nombre", ascending: true)]
+        do {
+            return try self.context.fetch(request)
+        } catch {
+            print("Error al obtener todas las mascotas: \(error)")
+            return []
+        }
+    }
+    
     func eliminarMascota(_ mascota: MascotaEntity) {
         context.delete(mascota)
         saveContext()

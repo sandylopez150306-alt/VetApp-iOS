@@ -5,11 +5,13 @@ import CoreData
 class MascotasViewController: UIViewController {
     
     private var mascotas: [MascotaEntity] = []
+    private var listener: ListenerRegistration? // Para gestionar el listener de Firebase
     
     private let tableView: UITableView = {
         let t = UITableView()
         t.register(MascotaCell.self, forCellReuseIdentifier: "MascotaCell")
-        t.rowHeight = 80
+        t.rowHeight = 90
+        t.separatorStyle = .none
         t.translatesAutoresizingMaskIntoConstraints = false
         return t
     }()
@@ -28,21 +30,29 @@ class MascotasViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Mis Mascotas"
-        view.backgroundColor = .systemBackground
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add,
-                                                             target: self,
-                                                             action: #selector(didTapAdd))
-        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Salir",
-                                                            style: .plain,
-                                                            target: self,
-                                                            action: #selector(didTapLogout))
+        setupNavigation()
         setupUI()
     }
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         cargarMascotas()
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        listener?.remove() // Detenemos el listener al salir de la pantalla
+    }
+    
+    private func setupNavigation() {
+        title = "Mis Mascotas"
+        navigationController?.navigationBar.prefersLargeTitles = true
+        view.backgroundColor = .systemBackground
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .add,
+            target: self,
+            action: #selector(didTapAdd)
+        )
     }
     
     private func setupUI() {
@@ -65,32 +75,39 @@ class MascotasViewController: UIViewController {
     private func cargarMascotas() {
         guard let uid = FirebaseAuthService.shared.uidActual else { return }
         let db = Firestore.firestore()
-        
-        db.collection("mascotas").whereField("usuarioUID", isEqualTo: uid)
+        listener = db.collection("mascotas")
+            .whereField("usuarioUID", isEqualTo: uid)
             .addSnapshotListener { [weak self] snapshot, error in
-                guard let self = self else { return }
+                guard let self = self, let documents = snapshot?.documents else { return }
                 
-                if let error = error {
-                    print("Error al obtener mascotas: \(error.localizedDescription)")
-                    return
-                }
-                
-                guard let documents = snapshot?.documents else { return }
-       
                 self.mascotas.removeAll()
                 
                 for document in documents {
                     let data = document.data()
+                    let nombreRaw = data["nombre"] as? String ?? ""
+                    let nombreLimpio = nombreRaw.trimmingCharacters(in: .whitespacesAndNewlines)
                     
-            
-                    let mascota = MascotaEntity(context: CoreDataManager.shared.context)
-                    mascota.nombre = data["nombre"] as? String
-                    mascota.especie = data["especie"] as? String
-                    mascota.raza = data["raza"] as? String
-                    mascota.id = UUID()
-                        
+                    let request: NSFetchRequest<MascotaEntity> = MascotaEntity.fetchRequest()
+                    request.predicate = NSPredicate(format: "nombre == %@ AND usuarioUID == %@", nombreLimpio, uid)
+                    
+                    let mascota = (try? CoreDataManager.shared.context.fetch(request).first) ?? MascotaEntity(context: CoreDataManager.shared.context)
+                    
+                    if mascota.id == nil { mascota.id = UUID() }
+                    
+                    mascota.nombre = nombreLimpio
+                    mascota.especie = (data["especie"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    mascota.raza = (data["raza"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    mascota.usuarioUID = uid
+                    if let fotoBase64 = data["fotoData"] as? String, !fotoBase64.isEmpty {
+                        mascota.fotoData = Data(base64Encoded: fotoBase64)
+                    } else {
+                        mascota.fotoData = nil
+                    }
+                    
                     self.mascotas.append(mascota)
                 }
+                
+                try? CoreDataManager.shared.context.save()
                 
                 DispatchQueue.main.async {
                     self.tableView.reloadData()
@@ -103,15 +120,9 @@ class MascotasViewController: UIViewController {
         let vc = RegistrarMascotaViewController()
         navigationController?.pushViewController(vc, animated: true)
     }
-    
-    @objc private func didTapLogout() {
-        let alert = UIAlertController(title: "¿Cerrar sesión?", message: nil, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
-       
-        present(alert, animated: true)
-    }
 }
 
+// MARK: - TableView Extensions
 extension MascotasViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return mascotas.count
@@ -132,7 +143,25 @@ extension MascotasViewController: UITableViewDataSource, UITableViewDelegate {
     
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
-            CoreDataManager.shared.eliminarMascota(mascotas[indexPath.row])
+            let mascotaAEliminar = mascotas[indexPath.row]
+            guard let nombre = mascotaAEliminar.nombre?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let uid = FirebaseAuthService.shared.uidActual else { return }
+            
+            let db = Firestore.firestore()
+    
+            db.collection("mascotas")
+                .whereField("usuarioUID", isEqualTo: uid)
+                .whereField("nombre", isEqualTo: nombre)
+                .getDocuments { (snapshot, error) in
+                    if let error = error {
+                        print("Error buscando para borrar: \(error)")
+                        return
+                    }
+                    snapshot?.documents.forEach { $0.reference.delete() }
+                }
+        
+            CoreDataManager.shared.eliminarMascota(mascotaAEliminar)
+            
             mascotas.remove(at: indexPath.row)
             tableView.deleteRows(at: [indexPath], with: .fade)
             emptyLabel.isHidden = !mascotas.isEmpty
@@ -142,12 +171,20 @@ extension MascotasViewController: UITableViewDataSource, UITableViewDelegate {
 
 // MARK: - MascotaCell
 class MascotaCell: UITableViewCell {
+    private let containerView: UIView = {
+        let v = UIView()
+        v.backgroundColor = .secondarySystemBackground
+        v.layer.cornerRadius = 12
+        v.translatesAutoresizingMaskIntoConstraints = false
+        return v
+    }()
+    
     private let fotoImageView: UIImageView = {
         let iv = UIImageView()
         iv.contentMode = .scaleAspectFill
         iv.clipsToBounds = true
-        iv.layer.cornerRadius = 28
-        iv.backgroundColor = .systemTeal.withAlphaComponent(0.2)
+        iv.layer.cornerRadius = 30
+        iv.backgroundColor = .systemGray5
         iv.image = UIImage(systemName: "pawprint.fill")
         iv.tintColor = .systemTeal
         iv.translatesAutoresizingMaskIntoConstraints = false
@@ -156,11 +193,11 @@ class MascotaCell: UITableViewCell {
     
     private let nombreLabel: UILabel = {
         let l = UILabel()
-        l.font = .systemFont(ofSize: 17, weight: .semibold)
+        l.font = .systemFont(ofSize: 18, weight: .bold)
         return l
     }()
     
-    private let especieLabel: UILabel = {
+    private let infoLabel: UILabel = {
         let l = UILabel()
         l.font = .systemFont(ofSize: 14)
         l.textColor = .secondaryLabel
@@ -169,30 +206,47 @@ class MascotaCell: UITableViewCell {
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
-        accessoryType = .disclosureIndicator
-        let stack = UIStackView(arrangedSubviews: [nombreLabel, especieLabel])
+        selectionStyle = .none
+        setupCellLayout()
+    }
+    
+    private func setupCellLayout() {
+        contentView.addSubview(containerView)
+        let stack = UIStackView(arrangedSubviews: [nombreLabel, infoLabel])
         stack.axis = .vertical
-        stack.spacing = 4
+        stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(fotoImageView)
-        contentView.addSubview(stack)
+        
+        containerView.addSubview(fotoImageView)
+        containerView.addSubview(stack)
+        
         NSLayoutConstraint.activate([
-            fotoImageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            fotoImageView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            fotoImageView.widthAnchor.constraint(equalToConstant: 56),
-            fotoImageView.heightAnchor.constraint(equalToConstant: 56),
-            stack.leadingAnchor.constraint(equalTo: fotoImageView.trailingAnchor, constant: 16),
-            stack.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
+            containerView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
+            containerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            containerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            containerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
+            
+            fotoImageView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 12),
+            fotoImageView.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
+            fotoImageView.widthAnchor.constraint(equalToConstant: 60),
+            fotoImageView.heightAnchor.constraint(equalToConstant: 60),
+            
+            stack.leadingAnchor.constraint(equalTo: fotoImageView.trailingAnchor, constant: 15),
+            stack.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
+            stack.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -12)
         ])
     }
+    
     required init?(coder: NSCoder) { fatalError() }
     
     func configure(with mascota: MascotaEntity) {
         nombreLabel.text = mascota.nombre
-        especieLabel.text = "\(mascota.especie ?? "") · \(mascota.raza ?? "")"
+        infoLabel.text = "\(mascota.especie ?? "Mascota") • \(mascota.raza ?? "Sin raza")"
+        
         if let data = mascota.fotoData, let img = UIImage(data: data) {
             fotoImageView.image = img
+        } else {
+            fotoImageView.image = UIImage(systemName: "pawprint.circle.fill")
         }
     }
 }
